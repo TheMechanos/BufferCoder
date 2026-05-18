@@ -18,7 +18,7 @@ public:
 protected:
     bool hasSpaceInBuffer(size_t pos, size_t size) { return pos + size <= maxSize; }
 
-    template <typename T> inline void encodeIntegral(size_t pos, T data) {
+    template <typename T> inline void encodeIntegralTemplate(size_t pos, T data) {
         static_assert(std::is_integral_v<T>, "T must be an integral type");
 
         const size_t size = sizeof(T);
@@ -29,7 +29,7 @@ protected:
         }
     }
 
-    template <typename T> inline T decodeIntegral(size_t pos) {
+    template <typename T> inline T decodeIntegralTemplate(size_t pos) {
         static_assert(std::is_integral_v<T>, "T must be an integral type");
 
         const size_t size = sizeof(T);

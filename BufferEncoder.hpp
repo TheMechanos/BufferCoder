@@ -20,7 +20,7 @@ public:
 
         if (!hasSpaceInBuffer(pos, sizeof(T))) return 0;
 
-        BufferCoderCommon::encodeIntegral(pos, value);
+        encodeIntegralTemplate(pos, value);
         return sizeof(T);
     }
 
