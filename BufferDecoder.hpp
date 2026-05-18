@@ -79,54 +79,62 @@ public:
 
 
 
-
-
 class BufferDecoderCursor : public BufferDecoder {
 public:
     BufferDecoderCursor(const void* buffer, size_t size, Endianness endianness = Endianness::LittleEndian)
-        : BufferDecoder(buffer, size, endianness)
-        , pos(0) { }
+        : BufferDecoder(buffer, size, endianness), pos(0), anyErrors(false) { }
 
     bool decodeBool(bool& data) {
         size_t read = BufferDecoder::decodeBool(pos, data);
         pos += read;
+        if (read == 0) anyErrors = true;
         return read > 0;
     }
 
-    template <typename T> bool decodeIntegral(T& value) {
+    template <typename T>
+    bool decodeIntegral(T& value) {
         size_t read = BufferDecoder::decodeIntegral(pos, value);
         pos += read;
+        if (read == 0) anyErrors = true;
         return read > 0;
     }
 
     bool decodeU32Packed(uint32_t& data) {
         size_t read = BufferDecoder::decodeU32Packed(pos, data);
         pos += read;
+        if (read == 0) anyErrors = true;
         return read > 0;
     }
 
     bool decodeBuffer(void* data, size_t dataSize) {
         size_t read = BufferDecoder::decodeBuffer(pos, data, dataSize);
         pos += read;
+        if (read == 0) anyErrors = true;
         return read > 0;
     }
 
     bool decodeBufferWithLength(void* data, size_t& dataSize) {
         size_t read = BufferDecoder::decodeBufferWithLength(pos, data, dataSize);
         pos += read;
+        if (read == 0) anyErrors = true;
         return read > 0;
     }
 
     bool decodeString(char* data, size_t maxLen) {
         size_t read = BufferDecoder::decodeString(pos, data, maxLen);
         pos += read;
+        if (read == 0) anyErrors = true;
         return read > 0;
     }
 
     size_t getPos() const { return pos; }
-    void resetPos() { pos = 0; }
     void setPos(size_t newPos) { pos = newPos; }
+    void resetPos() { pos = 0; }
+
+    bool hasAnyErrors() const { return anyErrors; }
+    void clearErrors() { anyErrors = false; }
 
 private:
     size_t pos;
+    bool anyErrors;
 };

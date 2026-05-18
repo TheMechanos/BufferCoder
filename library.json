@@ -1,6 +1,6 @@
 {
     "name": "BufferCoder",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Library to encode or decode variables from buffer",
     "keywords": "encoder, decoder, buffer",
     "repository": {

@@ -104,6 +104,25 @@ void setPos(size_t pos);
 void resetPos();
 ```
 
+Error state:
+
+```cpp
+bool hasAnyErrors() const;  // true if any operation failed since construction or last clearErrors()
+void clearErrors();          // reset the error flag
+```
+
+`hasAnyErrors()` is a sticky flag — once set it stays `true` regardless of subsequent successful operations. This lets you fire off a sequence of calls and check the result once at the end instead of after every step:
+
+```cpp
+BufferEncoderCursor enc(buf, sizeof(buf));
+enc.encodeU32Packed(id);
+enc.encodeIntegral(static_cast<uint16_t>(payloadLen));
+enc.encodeBuffer(payload, payloadLen);
+
+if (enc.hasAnyErrors()) return false;
+send(buf, enc.getPos());
+```
+
 ---
 
 ## Variable-length encoding (U32Packed)
@@ -127,15 +146,30 @@ value = 300 (0b100101100)
 
 ## Error handling
 
-All methods return `0` (low-level) or `false` (cursor) when the operation would exceed the buffer bounds. No exceptions are thrown. Typical usage pattern with the cursor:
+All methods return `0` (low-level) or `false` (cursor) when the operation would exceed the buffer bounds. No exceptions are thrown.
+
+Two patterns are available with the cursor — check per call, or check once at the end:
 
 ```cpp
+// Per-call — stop early on first error
 BufferDecoderCursor dec(buf, len);
 uint32_t id;
 uint16_t payloadLen;
 
 if (!dec.decodeU32Packed(id))        return ParseError::UnexpectedEnd;
 if (!dec.decodeIntegral(payloadLen)) return ParseError::UnexpectedEnd;
+
+// Deferred — fire all calls, check once at the end
+BufferDecoderCursor dec(buf, len);
+uint32_t id;
+uint16_t payloadLen;
+char name[32];
+
+dec.decodeU32Packed(id);
+dec.decodeIntegral(payloadLen);
+dec.decodeString(name, sizeof(name));
+
+if (dec.hasAnyErrors()) return ParseError::UnexpectedEnd;
 ```
 
 ---

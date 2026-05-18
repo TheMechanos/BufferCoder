@@ -77,15 +77,15 @@ public:
 
 
 
-
 class BufferEncoderCursor : public BufferEncoder {
 public:
     BufferEncoderCursor(void* buffer, size_t size, Endianness endianness = Endianness::LittleEndian)
-        : BufferEncoder(buffer, size, endianness), pos(0) { }
+        : BufferEncoder(buffer, size, endianness), pos(0), anyErrors(false) { }
 
     bool encodeBool(bool data) {
         size_t written = BufferEncoder::encodeBool(pos, data);
         pos += written;
+        if (written == 0) anyErrors = true;
         return written > 0;
     }
 
@@ -93,37 +93,46 @@ public:
     bool encodeIntegral(T value) {
         size_t written = BufferEncoder::encodeIntegral(pos, value);
         pos += written;
+        if (written == 0) anyErrors = true;
         return written > 0;
     }
 
     bool encodeU32Packed(uint32_t data) {
         size_t written = BufferEncoder::encodeU32Packed(pos, data);
         pos += written;
+        if (written == 0) anyErrors = true;
         return written > 0;
     }
 
     bool encodeBuffer(void* data, size_t dataSize) {
         size_t written = BufferEncoder::encodeBuffer(pos, data, dataSize);
         pos += written;
+        if (written == 0) anyErrors = true;
         return written > 0;
     }
 
     bool encodeBufferWithLength(void* data, size_t dataSize) {
         size_t written = BufferEncoder::encodeBufferWithLength(pos, data, dataSize);
         pos += written;
+        if (written == 0) anyErrors = true;
         return written > 0;
     }
 
     bool encodeString(char* data) {
         size_t written = BufferEncoder::encodeString(pos, data);
         pos += written;
+        if (written == 0) anyErrors = true;
         return written > 0;
     }
 
     size_t getPos() const { return pos; }
-    void resetPos() { pos = 0; }
     void setPos(size_t newPos) { pos = newPos; }
+    void resetPos() { pos = 0; }
+
+    bool hasAnyErrors() const { return anyErrors; }
+    void clearErrors() { anyErrors = false; }
 
 private:
     size_t pos;
+    bool anyErrors;
 };
