@@ -1,0 +1,7 @@
+version: 1.0.0
+maintainers:
+  - Sebastian Koczur <themechanos@gmail.com>
+description: >-
+  Library to encode or decode variables from buffer
+
+repository: "https://github.com/TheMechanos/BufferCoder.git"
