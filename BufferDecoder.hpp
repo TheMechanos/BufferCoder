@@ -20,7 +20,7 @@ public:
 
         if (!hasSpaceInBuffer(pos, sizeof(T))) return 0;
 
-        value = decodeIntegralTemplate(pos);
+        value = decodeIntegralTemplate<T>(pos);
         return sizeof(T);
     }
 
