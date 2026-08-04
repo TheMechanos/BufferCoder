@@ -3,6 +3,14 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <type_traits>
+
+#if defined(__cpp_variable_templates) && (__cpp_variable_templates >= 201304)
+    #define TYPE_TRAIT_VALUE(trait, type) std::trait##_v<type>
+#else
+    #define TYPE_TRAIT_VALUE(trait, type) std::trait<type>::value
+#endif
+
 class BufferCoderCommon {
 public:
     enum class Endianness : uint8_t { BigEndian, LittleEndian };
@@ -19,7 +27,7 @@ protected:
     bool hasSpaceInBuffer(size_t pos, size_t size) { return pos + size <= maxSize; }
 
     template <typename T> inline void encodeIntegralTemplate(size_t pos, T data) {
-        static_assert(std::is_integral_v<T>, "T must be an integral type");
+        static_assert(TYPE_TRAIT_VALUE(is_integral, T), "T must be an integral type");
 
         const size_t size = sizeof(T);
 
@@ -30,7 +38,7 @@ protected:
     }
 
     template <typename T> inline T decodeIntegralTemplate(size_t pos) {
-        static_assert(std::is_integral_v<T>, "T must be an integral type");
+        static_assert(TYPE_TRAIT_VALUE(is_integral, T), "T must be an integral type");
 
         const size_t size = sizeof(T);
         T value = 0;
