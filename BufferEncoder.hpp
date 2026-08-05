@@ -67,10 +67,9 @@ public:
         if (!hasSpaceInBuffer(pos, len + 1)) return 0;
 
         memcpy(&buffer[pos], data, len);
-        buffer[pos+len] = 0x00;
+        buffer[pos + len] = 0x00;
         return len + 1;
     }
-
 };
 
 
@@ -80,7 +79,17 @@ public:
 class BufferEncoderCursor : public BufferEncoder {
 public:
     BufferEncoderCursor(void* buffer, size_t size, Endianness endianness = Endianness::LittleEndian)
-        : BufferEncoder(buffer, size, endianness), pos(0), anyErrors(false) { }
+        : BufferEncoder(buffer, size, endianness)
+        , pos(0)
+        , anyErrors(false) { }
+
+
+    bool skipBytes(size_t bytes) {
+        for (size_t q = 0; q < bytes; q++) {
+            if (!encodeBool(false)) return false;
+        }
+        return true;
+    }
 
     bool encodeBool(bool data) {
         size_t written = BufferEncoder::encodeBool(pos, data);
@@ -89,8 +98,7 @@ public:
         return written > 0;
     }
 
-    template <typename T>
-    bool encodeIntegral(T value) {
+    template <typename T> bool encodeIntegral(T value) {
         size_t written = BufferEncoder::encodeIntegral(pos, value);
         pos += written;
         if (written == 0) anyErrors = true;

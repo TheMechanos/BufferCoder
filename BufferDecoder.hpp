@@ -82,7 +82,18 @@ public:
 class BufferDecoderCursor : public BufferDecoder {
 public:
     BufferDecoderCursor(const void* buffer, size_t size, Endianness endianness = Endianness::LittleEndian)
-        : BufferDecoder(buffer, size, endianness), pos(0), anyErrors(false) { }
+        : BufferDecoder(buffer, size, endianness)
+        , pos(0)
+        , anyErrors(false) { }
+
+
+    bool skipBytes(size_t bytes) {
+        for (size_t q = 0; q < bytes; q++) {
+            bool e;
+            if (!decodeBool(e)) return false;
+        }
+        return true;
+    }
 
     bool decodeBool(bool& data) {
         size_t read = BufferDecoder::decodeBool(pos, data);
@@ -91,8 +102,7 @@ public:
         return read > 0;
     }
 
-    template <typename T>
-    bool decodeIntegral(T& value) {
+    template <typename T> bool decodeIntegral(T& value) {
         size_t read = BufferDecoder::decodeIntegral(pos, value);
         pos += read;
         if (read == 0) anyErrors = true;
