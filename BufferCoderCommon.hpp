@@ -24,35 +24,39 @@ public:
         , endianness(endianness) { }
 
 
-    size_t getBufferSize() { return maxSize; }
+    size_t getBufferSize() const { return maxSize; }
 
 protected:
-    bool hasSpaceInBuffer(size_t pos, size_t size) { return pos + size <= maxSize; }
+    // Written to avoid size_t overflow of (pos + size) for large pos values
+    bool hasSpaceInBuffer(size_t pos, size_t size) const { return pos <= maxSize && size <= maxSize - pos; }
 
+    // Bit operations are done on uint64_t to avoid UB when shifting signed values
     template <typename T> inline void encodeIntegralTemplate(size_t pos, T data) {
         static_assert(TYPE_TRAIT_VALUE(is_integral, T), "T must be an integral type");
+        static_assert(sizeof(T) <= sizeof(uint64_t), "T must be at most 64 bits wide");
 
         const size_t size = sizeof(T);
+        const uint64_t raw = static_cast<uint64_t>(data);
 
         for (size_t i = 0; i < size; ++i) {
             size_t shift = (endianness == Endianness::LittleEndian) ? (8 * i) : (8 * (size - 1 - i));
-            buffer[pos + i] = static_cast<uint8_t>((data >> shift) & 0xFF);
+            buffer[pos + i] = static_cast<uint8_t>((raw >> shift) & 0xFF);
         }
     }
 
     template <typename T> inline T decodeIntegralTemplate(size_t pos) {
         static_assert(TYPE_TRAIT_VALUE(is_integral, T), "T must be an integral type");
+        static_assert(sizeof(T) <= sizeof(uint64_t), "T must be at most 64 bits wide");
 
         const size_t size = sizeof(T);
-        T value = 0;
+        uint64_t raw = 0;
 
         for (size_t i = 0; i < size; ++i) {
             size_t shift = (endianness == Endianness::LittleEndian) ? (8 * i) : (8 * (size - 1 - i));
-
-            value |= (static_cast<T>(buffer[pos + i]) << shift);
+            raw |= static_cast<uint64_t>(buffer[pos + i]) << shift;
         }
 
-        return value;
+        return static_cast<T>(raw);
     }
 
 

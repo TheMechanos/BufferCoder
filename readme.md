@@ -24,14 +24,16 @@ BufferCoderCommon
 uint8_t buf[64];
 
 // Encoder with manual position
-BufferEncoder enc(buf, sizeof(buf), Endianness::LittleEndian);
-enc.encodeU32Packed(0, 300);
-enc.encodeBool(3, true);
+BufferEncoder rawEnc(buf, sizeof(buf), BufferCoderCommon::Endianness::LittleEndian);
+size_t pos = 0;
+pos += rawEnc.encodeU32Packed(pos, 300);
+pos += rawEnc.encodeBool(pos, true);
 
 // Encoder with cursor (recommended)
 BufferEncoderCursor enc(buf, sizeof(buf));
 enc.encodeU32Packed(300);
 enc.encodeBool(true);
+enc.skipBytes(2);           // reserved bytes, filled with 0x00
 enc.encodeString("hello");
 
 // Decoder with cursor
@@ -41,6 +43,7 @@ bool flag;
 char str[32];
 dec.decodeU32Packed(value);
 dec.decodeBool(flag);
+dec.skipBytes(2);
 dec.decodeString(str, sizeof(str));
 ```
 
@@ -94,6 +97,12 @@ bool decodeU32Packed(uint32_t& data);
 bool decodeBuffer(void* data, size_t dataSize);             // dataSize == 0 is a successful no-op
 bool decodeBufferWithLength(void* data, size_t maxSize, size_t& dataSize);
 bool decodeString(char* data, size_t maxLen);
+```
+
+Skipping bytes:
+
+```cpp
+bool skipBytes(size_t bytes);  // encoder: writes 0x00 bytes, decoder: ignores bytes
 ```
 
 Position control:
@@ -178,7 +187,7 @@ if (dec.hasAnyErrors()) return ParseError::UnexpectedEnd;
 
 ## Endianness
 
-Pass `Endianness::LittleEndian` (default) or `Endianness::BigEndian` to the constructor. Applies to all `encodeIntegral` / `decodeIntegral` calls. `encodeU32Packed` is byte-order-independent by design.
+Pass `BufferCoderCommon::Endianness::LittleEndian` (default) or `BufferCoderCommon::Endianness::BigEndian` to the constructor. Applies to all `encodeIntegral` / `decodeIntegral` calls. `encodeU32Packed` is byte-order-independent by design.
 
 ---
 
