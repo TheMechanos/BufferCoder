@@ -15,8 +15,8 @@ public:
         return 1;
     }
 
-    template <typename T> T encodeIntegral(size_t pos, T value) {
-        static_assert(std::is_integral_v<T>, "T must be an integral type");
+    template <typename T> size_t encodeIntegral(size_t pos, T value) {
+        static_assert(TYPE_TRAIT_VALUE(is_integral, T), "T must be an integral type");
 
         if (!hasSpaceInBuffer(pos, sizeof(T))) return 0;
 
@@ -46,21 +46,25 @@ public:
         return size;
     }
 
-    size_t encodeBuffer(size_t pos, void* data, size_t dataSize) {
+    // Returns dataSize - for dataSize == 0 the result is 0 (nothing written, not an error)
+    size_t encodeBuffer(size_t pos, const void* data, size_t dataSize) {
         if (!hasSpaceInBuffer(pos, dataSize)) return 0;
 
-        memcpy(&buffer[pos], data, dataSize);
+        if (dataSize > 0) memcpy(&buffer[pos], data, dataSize);
         return dataSize;
     }
 
-    size_t encodeBufferWithLength(size_t pos, void* data, size_t dataSize) {
+    size_t encodeBufferWithLength(size_t pos, const void* data, size_t dataSize) {
+        // Length is stored as uint16_t - larger payloads cannot be represented
+        if (dataSize > UINT16_MAX) return 0;
         if (!hasSpaceInBuffer(pos, dataSize + 2)) return 0;
 
         encodeIntegral(pos, static_cast<uint16_t>(dataSize));
-        return encodeBuffer(pos + 2, data, dataSize);
+        if (dataSize > 0) memcpy(&buffer[pos + 2], data, dataSize);
+        return 2 + dataSize;
     }
 
-    size_t encodeString(size_t pos, char* data) {
+    size_t encodeString(size_t pos, const char* data) {
         size_t len = strlen(data);
 
         if (!hasSpaceInBuffer(pos, len + 1)) return 0;
@@ -111,21 +115,24 @@ public:
         return written > 0;
     }
 
-    bool encodeBuffer(void* data, size_t dataSize) {
+    bool encodeBuffer(const void* data, size_t dataSize) {
+        // Empty buffer is a valid no-op
+        if (dataSize == 0) return true;
+
         size_t written = BufferEncoder::encodeBuffer(pos, data, dataSize);
         pos += written;
         if (written == 0) anyErrors = true;
         return written > 0;
     }
 
-    bool encodeBufferWithLength(void* data, size_t dataSize) {
+    bool encodeBufferWithLength(const void* data, size_t dataSize) {
         size_t written = BufferEncoder::encodeBufferWithLength(pos, data, dataSize);
         pos += written;
         if (written == 0) anyErrors = true;
         return written > 0;
     }
 
-    bool encodeString(char* data) {
+    bool encodeString(const char* data) {
         size_t written = BufferEncoder::encodeString(pos, data);
         pos += written;
         if (written == 0) anyErrors = true;

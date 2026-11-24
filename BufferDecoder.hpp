@@ -16,7 +16,7 @@ public:
     }
 
     template <typename T> size_t decodeIntegral(size_t pos, T& value) {
-        static_assert(std::is_integral_v<T>, "T must be an integral type");
+        static_assert(TYPE_TRAIT_VALUE(is_integral, T), "T must be an integral type");
 
         if (!hasSpaceInBuffer(pos, sizeof(T))) return 0;
 
@@ -43,10 +43,11 @@ public:
         return 0;
     }
 
+    // Returns dataSize - for dataSize == 0 the result is 0 (nothing read, not an error)
     size_t decodeBuffer(size_t pos, void* data, size_t dataSize) {
         if (!hasSpaceInBuffer(pos, dataSize)) return 0;
 
-        memcpy(data, &buffer[pos], dataSize);
+        if (dataSize > 0) memcpy(data, &buffer[pos], dataSize);
         return dataSize;
     }
 
@@ -122,6 +123,9 @@ public:
     }
 
     bool decodeBuffer(void* data, size_t dataSize) {
+        // Empty buffer is a valid no-op
+        if (dataSize == 0) return true;
+
         size_t read = BufferDecoder::decodeBuffer(pos, data, dataSize);
         pos += read;
         if (read == 0) anyErrors = true;

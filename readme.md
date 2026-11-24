@@ -70,9 +70,9 @@ All methods take an explicit `pos` (byte offset into the buffer) and return the 
 | `encodeBool(pos, bool)` / `decodeBool(pos, bool&)` | 1 byte: `0x01` = true, `0x00` = false |
 | `encodeIntegral<T>(pos, T)` / `decodeIntegral<T>(pos, T&)` | Any integer type, respects endianness |
 | `encodeU32Packed(pos, uint32_t)` / `decodeU32Packed(pos, uint32_t&)` | Variable-length encoding, 1–4 bytes (see below) |
-| `encodeBuffer(pos, void*, size)` / `decodeBuffer(pos, void*, size)` | Raw bytes copy |
-| `encodeBufferWithLength(pos, void*, size)` / `decodeBufferWithLength(pos, void*, size&)` | Prepends `uint16_t` length, then raw bytes |
-| `encodeString(pos, char*)` / `decodeString(pos, char*, maxLen)` | Null-terminated string |
+| `encodeBuffer(pos, const void*, size)` / `decodeBuffer(pos, void*, size)` | Raw bytes copy. For `size == 0` returns `0` (nothing to copy) |
+| `encodeBufferWithLength(pos, const void*, size)` / `decodeBufferWithLength(pos, void*, maxSize, size&)` | Prepends `uint16_t` length, then raw bytes. Encoding fails if `size > 65535`. Decoding fails if the stored length exceeds `maxSize` (destination capacity) or the source buffer. Empty payload is valid (2 bytes) |
+| `encodeString(pos, const char*)` / `decodeString(pos, char*, maxLen)` | Null-terminated string |
 
 ---
 
@@ -84,15 +84,15 @@ Same methods as above but **without the `pos` argument** — position is managed
 bool encodeBool(bool data);
 template <typename T> bool encodeIntegral(T value);
 bool encodeU32Packed(uint32_t data);
-bool encodeBuffer(void* data, size_t dataSize);
-bool encodeBufferWithLength(void* data, size_t dataSize);
-bool encodeString(char* data);
+bool encodeBuffer(const void* data, size_t dataSize);       // dataSize == 0 is a successful no-op
+bool encodeBufferWithLength(const void* data, size_t dataSize);
+bool encodeString(const char* data);
 
 bool decodeBool(bool& data);
 template <typename T> bool decodeIntegral(T& value);
 bool decodeU32Packed(uint32_t& data);
-bool decodeBuffer(void* data, size_t dataSize);
-bool decodeBufferWithLength(void* data, size_t& dataSize);
+bool decodeBuffer(void* data, size_t dataSize);             // dataSize == 0 is a successful no-op
+bool decodeBufferWithLength(void* data, size_t maxSize, size_t& dataSize);
 bool decodeString(char* data, size_t maxLen);
 ```
 
@@ -135,6 +135,8 @@ send(buf, enc.getPos());
 | 128 – 16 383 | 2 |
 | 16 384 – 2 097 151 | 3 |
 | 2 097 152 – 268 435 455 | 4 |
+
+Maximum encodable value is `BufferCoderCommon::U32PackedMax` (268 435 455). Larger values make `encodeU32Packed` fail. `decodeU32Packed` fails if the 4th byte still has the continuation bit set (malformed input).
 
 ```
 value = 300 (0b100101100)
