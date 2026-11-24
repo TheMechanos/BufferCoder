@@ -51,6 +51,26 @@ struct Ping {
 bool encodeTo(BufferEncoderCursor& enc, const Ping& p) { return enc.encode(p.seq); }
 
 
+// ---------- third-party type without ADL hooks - converter specialization ----------
+
+namespace ext {
+struct Rgb {
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+};
+} // namespace ext
+
+template <> struct BufferConverter<ext::Rgb> {
+    static bool encode(BufferEncoderCursor& enc, const ext::Rgb& c) {
+        return enc.encode(c.r) && enc.encode(c.g) && enc.encode(c.b);
+    }
+    static bool decode(BufferDecoderCursor& dec, ext::Rgb& c) {
+        return dec.decode(c.r) && dec.decode(c.g) && dec.decode(c.b);
+    }
+};
+
+
 // ---------- Task 1: core, bool, integral, enum ----------
 
 static void integralLittleEndian() {
@@ -197,6 +217,21 @@ static void charArrayIsRawBytes() {
 }
 
 
+// ---------- Task 3: specialization escape hatch ----------
+
+static void specializedConverterRoundtrip() {
+    uint8_t buf[8] = {};
+    BufferEncoderCursor enc(buf, sizeof(buf));
+    CHECK(enc.encode(ext::Rgb{1, 2, 3}));
+    CHECK(enc.getPos() == 3);
+
+    BufferDecoderCursor dec(buf, sizeof(buf));
+    ext::Rgb out{};
+    CHECK(dec.decode(out));
+    CHECK(out.r == 1 && out.g == 2 && out.b == 3);
+}
+
+
 int main() {
     integralLittleEndian();
     signedRoundtrip();
@@ -212,6 +247,8 @@ int main() {
     cArrayElementwise();
     stdArrayOfUserTypes();
     charArrayIsRawBytes();
+
+    specializedConverterRoundtrip();
 
     if (failures == 0) {
         printf("ALL TESTS PASSED\n");
