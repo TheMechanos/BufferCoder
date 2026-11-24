@@ -142,7 +142,7 @@ send(buf, enc.getPos());
 
 Inspired by ArduinoJson's custom converters: any type can be encoded/decoded with a single call by writing a pair of free functions for it. Nested types compose automatically. Requires `#include <BufferCoder.hpp>`.
 
-The whole library needs only C++11 and does not use the C++ standard library (no `std::`) — it works on targets without an STL, e.g. Arduino AVR. Enum support relies on the `__is_enum` / `__underlying_type` compiler intrinsics (GCC, Clang, MSVC).
+The whole library needs only C++11. From the C++ standard library it uses only `<type_traits>` (compile-time only, no runtime code or heap).
 
 ```cpp
 template <typename T> bool BufferEncoderCursor::encode(const T& value);

@@ -16,7 +16,7 @@ public:
     }
 
     template <typename T> size_t decodeIntegral(size_t pos, T& value) {
-        static_assert(bufferCoderDetail::IsIntegral<T>::value, "T must be an integral type");
+        static_assert(std::is_integral<T>::value, "T must be an integral type");
 
         if (!hasSpaceInBuffer(pos, sizeof(T))) return 0;
 
@@ -148,7 +148,7 @@ public:
 
     // Generic decode - dispatches to BufferConverter<T> (include BufferCoder.hpp)
     template <typename T> bool decode(T& value) {
-        return BufferConverter<typename bufferCoderDetail::RemoveCv<T>::type>::decode(*this, value);
+        return BufferConverter<typename std::remove_cv<T>::type>::decode(*this, value);
     }
 
     size_t getPos() const { return pos; }

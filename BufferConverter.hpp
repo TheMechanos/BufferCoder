@@ -1,8 +1,9 @@
 #pragma once
 
-#include <BufferCoderTraits.hpp>
 #include <BufferDecoder.hpp>
 #include <BufferEncoder.hpp>
+
+#include <type_traits>
 
 // BufferConverter<T> - ArduinoJson-style serialization hooks.
 //
@@ -12,34 +13,41 @@
 // or specialize BufferConverter<T> with static encode()/decode() for types
 // you cannot add free functions for.
 //
-// No dependency on the C++ standard library, C++11 compatible.
+// C++11 compatible, uses only <type_traits> from the standard library.
 
 namespace bufferCoderDetail {
 
-template <typename T, typename = void> struct HasEncodeTo : FalseType { };
+// C++11-safe void_t (std::void_t is C++17; struct form avoids CWG 1558 on older compilers)
+template <typename...> struct MakeVoid {
+    typedef void type;
+};
+
+// Pointer dereference in decltype is unevaluated - replaces std::declval without <utility>
+template <typename T, typename = void> struct HasEncodeTo : std::false_type { };
 
 template <typename T>
 struct HasEncodeTo<T,
-    typename MakeVoid<decltype(encodeTo(declval<BufferEncoderCursor&>(), declval<const T&>()))>::type>
-    : TrueType { };
+    typename MakeVoid<decltype(encodeTo(*static_cast<BufferEncoderCursor*>(nullptr),
+                                        *static_cast<const T*>(nullptr)))>::type> : std::true_type { };
 
-template <typename T, typename = void> struct HasDecodeFrom : FalseType { };
+template <typename T, typename = void> struct HasDecodeFrom : std::false_type { };
 
 template <typename T>
-struct HasDecodeFrom<T, typename MakeVoid<decltype(decodeFrom(declval<BufferDecoderCursor&>(), declval<T&>()))>::type>
-    : TrueType { };
+struct HasDecodeFrom<T,
+    typename MakeVoid<decltype(decodeFrom(*static_cast<BufferDecoderCursor*>(nullptr),
+                                          *static_cast<T*>(nullptr)))>::type> : std::true_type { };
 
-// Tag dispatch instead of if constexpr - the TrueType overload body is instantiated
+// Tag dispatch instead of if constexpr - the true_type overload body is instantiated
 // only when the hook exists, so a missing hook produces just the static_assert below.
-template <typename T> bool callEncodeTo(BufferEncoderCursor& enc, const T& value, TrueType) {
+template <typename T> bool callEncodeTo(BufferEncoderCursor& enc, const T& value, std::true_type) {
     return encodeTo(enc, value);
 }
-template <typename T> bool callEncodeTo(BufferEncoderCursor&, const T&, FalseType) { return false; }
+template <typename T> bool callEncodeTo(BufferEncoderCursor&, const T&, std::false_type) { return false; }
 
-template <typename T> bool callDecodeFrom(BufferDecoderCursor& dec, T& value, TrueType) {
+template <typename T> bool callDecodeFrom(BufferDecoderCursor& dec, T& value, std::true_type) {
     return decodeFrom(dec, value);
 }
-template <typename T> bool callDecodeFrom(BufferDecoderCursor&, T&, FalseType) { return false; }
+template <typename T> bool callDecodeFrom(BufferDecoderCursor&, T&, std::false_type) { return false; }
 
 } // namespace bufferCoderDetail
 
@@ -52,7 +60,7 @@ template <typename T, typename Enable> struct BufferConverter {
         static_assert(Has::value,
             "BufferConverter: no bool encodeTo(BufferEncoderCursor&, const T&) found for this type "
             "- define it or specialize BufferConverter<T>");
-        return bufferCoderDetail::callEncodeTo(enc, value, bufferCoderDetail::BoolConstant<Has::value>());
+        return bufferCoderDetail::callEncodeTo(enc, value, std::integral_constant<bool, Has::value>());
     }
 
     static bool decode(BufferDecoderCursor& dec, T& value) {
@@ -60,7 +68,7 @@ template <typename T, typename Enable> struct BufferConverter {
         static_assert(Has::value,
             "BufferConverter: no bool decodeFrom(BufferDecoderCursor&, T&) found for this type "
             "- define it or specialize BufferConverter<T>");
-        return bufferCoderDetail::callDecodeFrom(dec, value, bufferCoderDetail::BoolConstant<Has::value>());
+        return bufferCoderDetail::callDecodeFrom(dec, value, std::integral_constant<bool, Has::value>());
     }
 };
 
@@ -74,16 +82,15 @@ template <> struct BufferConverter<bool> {
 
 template <typename T>
 struct BufferConverter<T,
-    typename bufferCoderDetail::EnableIf<bufferCoderDetail::IsIntegral<T>::value
-                                         && !bufferCoderDetail::IsSame<T, bool>::value>::type> {
+    typename std::enable_if<std::is_integral<T>::value && !std::is_same<T, bool>::value>::type> {
     static bool encode(BufferEncoderCursor& enc, const T& value) { return enc.encodeIntegral(value); }
     static bool decode(BufferDecoderCursor& dec, T& value) { return dec.decodeIntegral(value); }
 };
 
 // Enums are stored as their underlying type (sizeof(underlying type) bytes)
 template <typename T>
-struct BufferConverter<T, typename bufferCoderDetail::EnableIf<bufferCoderDetail::IsEnum<T>::value>::type> {
-    typedef typename bufferCoderDetail::UnderlyingType<T>::type Underlying;
+struct BufferConverter<T, typename std::enable_if<std::is_enum<T>::value>::type> {
+    typedef typename std::underlying_type<T>::type Underlying;
 
     static bool encode(BufferEncoderCursor& enc, const T& value) {
         return enc.encodeIntegral(static_cast<Underlying>(value));
@@ -101,9 +108,9 @@ struct BufferConverter<T, typename bufferCoderDetail::EnableIf<bufferCoderDetail
 // Size follows sizeof(T): note that double is 4 bytes on AVR and 8 bytes on most other targets.
 template <typename T>
 struct BufferConverter<T,
-    typename bufferCoderDetail::EnableIf<bufferCoderDetail::IsSame<T, float>::value
-                                         || bufferCoderDetail::IsSame<T, double>::value>::type> {
-    typedef typename bufferCoderDetail::UIntOfSize<sizeof(T)>::type Bits;
+    typename std::enable_if<std::is_same<T, float>::value || std::is_same<T, double>::value>::type> {
+    static_assert(sizeof(T) == 4 || sizeof(T) == 8, "BufferConverter: unsupported floating point size");
+    typedef typename std::conditional<sizeof(T) == 4, uint32_t, uint64_t>::type Bits;
 
     static bool encode(BufferEncoderCursor& enc, const T& value) {
         Bits bits;
