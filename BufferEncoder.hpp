@@ -16,7 +16,7 @@ public:
     }
 
     template <typename T> size_t encodeIntegral(size_t pos, T value) {
-        static_assert(TYPE_TRAIT_VALUE(is_integral, T), "T must be an integral type");
+        static_assert(std::is_integral<T>::value, "T must be an integral type");
 
         if (!hasSpaceInBuffer(pos, sizeof(T))) return 0;
 
@@ -137,6 +137,11 @@ public:
         pos += written;
         if (written == 0) anyErrors = true;
         return written > 0;
+    }
+
+    // Generic encode - dispatches to BufferConverter<T> (include BufferCoder.hpp)
+    template <typename T> bool encode(const T& value) {
+        return BufferConverter<typename std::remove_cv<T>::type>::encode(*this, value);
     }
 
     size_t getPos() const { return pos; }

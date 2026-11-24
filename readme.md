@@ -12,6 +12,8 @@ BufferCoderCommon
 │   └── BufferEncoderCursor
 └── BufferDecoder
     └── BufferDecoderCursor
+
+BufferConverter<T>   — encode()/decode() of custom types (see "Custom types")
 ```
 
 `BufferCoderCommon` holds the buffer pointer, size, and endianness. Encoder and decoder inherit from it and add their respective read/write methods. The `Cursor` variants track the current position automatically.
@@ -21,6 +23,8 @@ BufferCoderCommon
 ## Quick start
 
 ```cpp
+#include <BufferCoder.hpp>
+
 uint8_t buf[64];
 
 // Encoder with manual position
@@ -131,6 +135,85 @@ enc.encodeBuffer(payload, payloadLen);
 if (enc.hasAnyErrors()) return false;
 send(buf, enc.getPos());
 ```
+
+---
+
+## Custom types
+
+Inspired by ArduinoJson's custom converters: any type can be encoded/decoded with a single call by writing a pair of free functions for it. Nested types compose automatically. Requires `#include <BufferCoder.hpp>`.
+
+The whole library needs only C++11. From the C++ standard library it uses only `<type_traits>` (compile-time only, no runtime code or heap).
+
+```cpp
+template <typename T> bool BufferEncoderCursor::encode(const T& value);
+template <typename T> bool BufferDecoderCursor::decode(T& value);
+```
+
+### Free functions (recommended)
+
+Declare them in the same namespace as the type (found via argument-dependent lookup):
+
+```cpp
+#include <BufferCoder.hpp>
+
+enum class Mode : uint8_t { Idle, Run };
+
+struct Point { int16_t x, y; };
+struct Frame { uint16_t id; Mode mode; Point pos; float temp; };
+
+bool encodeTo(BufferEncoderCursor& enc, const Point& p) { return enc.encode(p.x) && enc.encode(p.y); }
+bool decodeFrom(BufferDecoderCursor& dec, Point& p)     { return dec.decode(p.x) && dec.decode(p.y); }
+
+bool encodeTo(BufferEncoderCursor& enc, const Frame& f) {
+    return enc.encode(f.id) && enc.encode(f.mode) && enc.encode(f.pos) && enc.encode(f.temp);
+}
+bool decodeFrom(BufferDecoderCursor& dec, Frame& f) {
+    return dec.decode(f.id) && dec.decode(f.mode) && dec.decode(f.pos) && dec.decode(f.temp);
+}
+
+// usage
+BufferEncoderCursor enc(buf, sizeof(buf));
+enc.encode(frame);
+
+BufferDecoderCursor dec(buf, len);
+Frame frame;
+if (!dec.decode(frame)) return false;
+```
+
+Declare `encodeTo` / `decodeFrom` before the first `encode` / `decode` call for that type (typically right next to the type in its header) — the detection result is fixed at the first use.
+
+A type may define only one direction (e.g. only `encodeTo` for a message that is never received). Calling `decode` on it then fails at compile time with a readable `static_assert`.
+
+Instead of chaining with `&&` you can also call `encode`/`decode` unconditionally and check `hasAnyErrors()` at the end.
+
+### Converter specialization
+
+For types you cannot add free functions for (standard library, third-party code), specialize `BufferConverter<T>` in the global namespace:
+
+```cpp
+template <> struct BufferConverter<ext::Rgb> {
+    static bool encode(BufferEncoderCursor& enc, const ext::Rgb& c) {
+        return enc.encode(c.r) && enc.encode(c.g) && enc.encode(c.b);
+    }
+    static bool decode(BufferDecoderCursor& dec, ext::Rgb& c) {
+        return dec.decode(c.r) && dec.decode(c.g) && dec.decode(c.b);
+    }
+};
+```
+
+### Built-in types
+
+| Type | Encoding |
+|------|----------|
+| `bool` | 1 byte (`encodeBool`) |
+| integral types | `sizeof(T)` bytes, coder endianness (`encodeIntegral`) |
+| enums | underlying type — use a fixed one (`enum class X : uint8_t`) for a portable size |
+| `float` / `double` | IEEE 754 bits as `uint32_t` / `uint64_t`, coder endianness |
+| `T[N]` | N elements in order, no length prefix |
+
+`double` is encoded with `sizeof(double)` bytes — on AVR that is 4 bytes, on ESP32/ARM/x86 8 bytes. Use `float` in messages exchanged between such platforms.
+
+`char[N]` is encoded as N raw bytes, not as a string — use `encodeString` / `decodeString` for null-terminated strings.
 
 ---
 
