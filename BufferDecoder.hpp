@@ -26,23 +26,21 @@ public:
 
     size_t decodeU32Packed(size_t pos, uint32_t& data) {
         uint32_t value = 0;
-        uint32_t shift = 1;
-        size_t size = 0;
 
-        while (size < 4) {
+        for (size_t size = 0; size < 4; size++) {
             if (!hasSpaceInBuffer(pos, size + 1)) return 0;
 
             uint8_t byte = buffer[pos + size];
-            value += (byte & 0x7F) * shift;
-            size++;
+            value |= static_cast<uint32_t>(byte & 0x7F) << (7 * size);
 
-            if (byte < 0x80) break;
-
-            shift *= 0x80;
+            if ((byte & 0x80) == 0) {
+                data = value;
+                return size + 1;
+            }
         }
 
-        data = value;
-        return size;
+        // Continuation bit set on the 4th byte - malformed data
+        return 0;
     }
 
     size_t decodeBuffer(size_t pos, void* data, size_t dataSize) {
@@ -52,14 +50,21 @@ public:
         return dataSize;
     }
 
-    size_t decodeBufferWithLength(size_t pos, void* data, size_t& dataSize) {
+    // maxSize - capacity of the destination buffer, dataSize - receives decoded length
+    size_t decodeBufferWithLength(size_t pos, void* data, size_t maxSize, size_t& dataSize) {
         if (!hasSpaceInBuffer(pos, 2)) return 0;
 
         uint16_t len = 0;
         decodeIntegral(pos, len);
+
+        // Length comes from untrusted data - validate against destination and source sizes
+        if (len > maxSize) return 0;
+        if (!hasSpaceInBuffer(pos + 2, len)) return 0;
+
+        if (len > 0) memcpy(data, &buffer[pos + 2], len);
         dataSize = len;
 
-        return 2 + decodeBuffer(pos + 2, data, dataSize);
+        return 2 + len;
     }
 
     size_t decodeString(size_t pos, char* data, size_t maxLen) {
@@ -123,8 +128,8 @@ public:
         return read > 0;
     }
 
-    bool decodeBufferWithLength(void* data, size_t& dataSize) {
-        size_t read = BufferDecoder::decodeBufferWithLength(pos, data, dataSize);
+    bool decodeBufferWithLength(void* data, size_t maxSize, size_t& dataSize) {
+        size_t read = BufferDecoder::decodeBufferWithLength(pos, data, maxSize, dataSize);
         pos += read;
         if (read == 0) anyErrors = true;
         return read > 0;

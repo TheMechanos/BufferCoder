@@ -26,24 +26,23 @@ public:
 
 
     size_t encodeU32Packed(size_t pos, uint32_t data) {
-        uint8_t byte;
+        // Max 4 bytes x 7 bits - larger values cannot be decoded
+        if (data > U32PackedMax) return 0;
+
         size_t size = 0;
 
-        if (data == 0) {
-            buffer[pos] = 0x00;
-            return 1;
-        }
-
-        while (data > 0) {
+        // do-while so that value 0 is also encoded (as a single 0x00 byte) with bounds check
+        do {
             if (!hasSpaceInBuffer(pos, size + 1)) return 0;
 
-            byte = data & 0x7F;
+            uint8_t byte = data & 0x7F;
             data >>= 7;
             if (data > 0) byte |= 0x80;
 
             buffer[pos + size] = byte;
             size++;
-        }
+        } while (data > 0);
+
         return size;
     }
 

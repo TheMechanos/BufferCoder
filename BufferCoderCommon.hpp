@@ -15,6 +15,9 @@ class BufferCoderCommon {
 public:
     enum class Endianness : uint8_t { BigEndian, LittleEndian };
 
+    // Largest value representable by U32Packed encoding (4 bytes x 7 bits)
+    static constexpr uint32_t U32PackedMax = 0x0FFFFFFF;
+
     BufferCoderCommon(void* buffer, size_t size, Endianness endianness = Endianness::LittleEndian)
         : buffer(static_cast<uint8_t*>(buffer))
         , maxSize(size)
