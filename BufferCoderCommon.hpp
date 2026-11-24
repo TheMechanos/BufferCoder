@@ -1,15 +1,10 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
-#include <type_traits>
-
-#if defined(__cpp_variable_templates) && (__cpp_variable_templates >= 201304)
-    #define TYPE_TRAIT_VALUE(trait, type) std::trait##_v<type>
-#else
-    #define TYPE_TRAIT_VALUE(trait, type) std::trait<type>::value
-#endif
+#include <BufferCoderTraits.hpp>
 
 // Serialization hook for encode()/decode() on cursors - defined in BufferConverter.hpp
 template <typename T, typename Enable = void> struct BufferConverter;
@@ -35,7 +30,7 @@ protected:
 
     // Bit operations are done on uint64_t to avoid UB when shifting signed values
     template <typename T> inline void encodeIntegralTemplate(size_t pos, T data) {
-        static_assert(TYPE_TRAIT_VALUE(is_integral, T), "T must be an integral type");
+        static_assert(bufferCoderDetail::IsIntegral<T>::value, "T must be an integral type");
         static_assert(sizeof(T) <= sizeof(uint64_t), "T must be at most 64 bits wide");
 
         const size_t size = sizeof(T);
@@ -48,7 +43,7 @@ protected:
     }
 
     template <typename T> inline T decodeIntegralTemplate(size_t pos) {
-        static_assert(TYPE_TRAIT_VALUE(is_integral, T), "T must be an integral type");
+        static_assert(bufferCoderDetail::IsIntegral<T>::value, "T must be an integral type");
         static_assert(sizeof(T) <= sizeof(uint64_t), "T must be at most 64 bits wide");
 
         const size_t size = sizeof(T);

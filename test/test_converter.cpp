@@ -1,9 +1,10 @@
 // Host test for BufferConverter.
-// Build: g++ -std=c++17 -Wall -Wextra -I. test/test_converter.cpp -o test_converter && ./test_converter
+// Build (check both the minimum and a modern standard):
+//   g++ -std=c++11 -Wall -Wextra -I. test/test_converter.cpp -o test_converter && ./test_converter
+//   g++ -std=c++17 -Wall -Wextra -I. test/test_converter.cpp -o test_converter && ./test_converter
 
 #include <BufferCoder.hpp>
 
-#include <array>
 #include <stdio.h>
 #include <string.h>
 
@@ -194,15 +195,15 @@ static void cArrayElementwise() {
     CHECK(b[0] == a[0] && b[1] == a[1] && b[2] == a[2]);
 }
 
-static void stdArrayOfUserTypes() {
+static void arrayOfUserTypes() {
     uint8_t buf[16] = {};
-    const std::array<Point, 2> in{{{1, -1}, {1000, -1000}}};
+    const Point in[2] = {{1, -1}, {1000, -1000}};
     BufferEncoderCursor enc(buf, sizeof(buf));
     CHECK(enc.encode(in));
     CHECK(enc.getPos() == 8);
 
     BufferDecoderCursor dec(buf, sizeof(buf));
-    std::array<Point, 2> out{};
+    Point out[2] = {};
     CHECK(dec.decode(out));
     CHECK(out[0].x == 1 && out[0].y == -1 && out[1].x == 1000 && out[1].y == -1000);
 }
@@ -245,7 +246,7 @@ int main() {
     floatBigEndianLayout();
     doubleRoundtrip();
     cArrayElementwise();
-    stdArrayOfUserTypes();
+    arrayOfUserTypes();
     charArrayIsRawBytes();
 
     specializedConverterRoundtrip();
