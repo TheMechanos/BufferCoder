@@ -11,6 +11,9 @@
     #define TYPE_TRAIT_VALUE(trait, type) std::trait<type>::value
 #endif
 
+// Serialization hook for encode()/decode() on cursors - defined in BufferConverter.hpp
+template <typename T, typename Enable = void> struct BufferConverter;
+
 class BufferCoderCommon {
 public:
     enum class Endianness : uint8_t { BigEndian, LittleEndian };

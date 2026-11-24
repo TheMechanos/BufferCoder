@@ -139,6 +139,11 @@ public:
         return written > 0;
     }
 
+    // Generic encode - dispatches to BufferConverter<T> (include BufferCoder.hpp)
+    template <typename T> bool encode(const T& value) {
+        return BufferConverter<std::remove_cv_t<T>>::encode(*this, value);
+    }
+
     size_t getPos() const { return pos; }
     void setPos(size_t newPos) { pos = newPos; }
     void resetPos() { pos = 0; }

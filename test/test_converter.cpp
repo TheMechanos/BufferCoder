@@ -1,0 +1,141 @@
+// Host test for BufferConverter.
+// Build: g++ -std=c++17 -Wall -Wextra -I. test/test_converter.cpp -o test_converter && ./test_converter
+
+#include <BufferCoder.hpp>
+
+#include <stdio.h>
+
+static int failures = 0;
+
+#define CHECK(cond)                                                       \
+    do {                                                                  \
+        if (!(cond)) {                                                    \
+            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
+            failures++;                                                   \
+        }                                                                 \
+    } while (0)
+
+
+// ---------- user types (global namespace, ADL hooks) ----------
+
+enum class Mode : uint8_t { A = 1, B = 7 };
+
+struct Point {
+    int16_t x;
+    int16_t y;
+};
+
+struct Frame {
+    uint16_t id;
+    Mode mode;
+    Point pos;
+};
+
+bool encodeTo(BufferEncoderCursor& enc, const Point& p) { return enc.encode(p.x) && enc.encode(p.y); }
+bool decodeFrom(BufferDecoderCursor& dec, Point& p) { return dec.decode(p.x) && dec.decode(p.y); }
+
+bool encodeTo(BufferEncoderCursor& enc, const Frame& f) {
+    return enc.encode(f.id) && enc.encode(f.mode) && enc.encode(f.pos);
+}
+bool decodeFrom(BufferDecoderCursor& dec, Frame& f) {
+    return dec.decode(f.id) && dec.decode(f.mode) && dec.decode(f.pos);
+}
+
+// Encode-only type - no decodeFrom on purpose
+struct Ping {
+    uint8_t seq;
+};
+
+bool encodeTo(BufferEncoderCursor& enc, const Ping& p) { return enc.encode(p.seq); }
+
+
+// ---------- Task 1: core, bool, integral, enum ----------
+
+static void integralLittleEndian() {
+    uint8_t buf[16] = {};
+    BufferEncoderCursor enc(buf, sizeof(buf));
+    CHECK(enc.encode(uint16_t{0x1234}));
+    CHECK(buf[0] == 0x34 && buf[1] == 0x12 && enc.getPos() == 2);
+}
+
+static void signedRoundtrip() {
+    uint8_t buf[16] = {};
+    BufferEncoderCursor enc(buf, sizeof(buf));
+    CHECK(enc.encode(int32_t{-5}));
+
+    BufferDecoderCursor dec(buf, sizeof(buf));
+    int32_t v = 0;
+    CHECK(dec.decode(v));
+    CHECK(v == -5);
+}
+
+static void boolIsOneByte() {
+    uint8_t buf[16] = {};
+    BufferEncoderCursor enc(buf, sizeof(buf));
+    CHECK(enc.encode(true));
+    CHECK(enc.getPos() == 1 && buf[0] == 0x01);
+
+    BufferDecoderCursor dec(buf, sizeof(buf));
+    bool v = false;
+    CHECK(dec.decode(v));
+    CHECK(v == true);
+}
+
+static void enumUsesUnderlyingType() {
+    uint8_t buf[16] = {};
+    BufferEncoderCursor enc(buf, sizeof(buf));
+    CHECK(enc.encode(Mode::B));
+    CHECK(enc.getPos() == 1 && buf[0] == 7);
+
+    BufferDecoderCursor dec(buf, sizeof(buf));
+    Mode m = Mode::A;
+    CHECK(dec.decode(m));
+    CHECK(m == Mode::B);
+}
+
+static void nestedUserTypeRoundtrip() {
+    uint8_t buf[16] = {};
+    const Frame in{0xBEEF, Mode::A, {-3, 300}};
+
+    BufferEncoderCursor enc(buf, sizeof(buf));
+    CHECK(enc.encode(in));
+    CHECK(enc.getPos() == 7);
+
+    BufferDecoderCursor dec(buf, sizeof(buf));
+    Frame out{};
+    CHECK(dec.decode(out));
+    CHECK(dec.getPos() == 7);
+    CHECK(out.id == 0xBEEF && out.mode == Mode::A && out.pos.x == -3 && out.pos.y == 300);
+}
+
+static void nestedFailurePropagates() {
+    uint8_t buf[5] = {};
+    BufferEncoderCursor enc(buf, sizeof(buf));
+    CHECK(!enc.encode(Frame{1, Mode::B, {2, 3}}));
+    CHECK(enc.hasAnyErrors());
+}
+
+static void encodeOnlyTypeCompiles() {
+    uint8_t buf[4] = {};
+    BufferEncoderCursor enc(buf, sizeof(buf));
+    CHECK(enc.encode(Ping{9}));
+    CHECK(buf[0] == 9);
+}
+
+
+int main() {
+    integralLittleEndian();
+    signedRoundtrip();
+    boolIsOneByte();
+    enumUsesUnderlyingType();
+    nestedUserTypeRoundtrip();
+    nestedFailurePropagates();
+    encodeOnlyTypeCompiles();
+
+    if (failures == 0) {
+        printf("ALL TESTS PASSED\n");
+        return 0;
+    }
+    printf("%d CHECK(S) FAILED\n", failures);
+    return 1;
+}
