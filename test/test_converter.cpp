@@ -3,7 +3,9 @@
 
 #include <BufferCoder.hpp>
 
+#include <array>
 #include <stdio.h>
+#include <string.h>
 
 static int failures = 0;
 
@@ -123,6 +125,78 @@ static void encodeOnlyTypeCompiles() {
 }
 
 
+// ---------- Task 2: float, double, arrays ----------
+
+static void floatLittleEndianLayout() {
+    uint8_t buf[8] = {};
+    BufferEncoderCursor enc(buf, sizeof(buf));
+    CHECK(enc.encode(1.0f));
+    CHECK(enc.getPos() == 4);
+    CHECK(buf[0] == 0x00 && buf[1] == 0x00 && buf[2] == 0x80 && buf[3] == 0x3F);
+
+    BufferDecoderCursor dec(buf, sizeof(buf));
+    float v = 0.0f;
+    CHECK(dec.decode(v));
+    CHECK(v == 1.0f);
+}
+
+static void floatBigEndianLayout() {
+    uint8_t buf[8] = {};
+    BufferEncoderCursor enc(buf, sizeof(buf), BufferCoderCommon::Endianness::BigEndian);
+    CHECK(enc.encode(1.0f));
+    CHECK(buf[0] == 0x3F && buf[1] == 0x80 && buf[2] == 0x00 && buf[3] == 0x00);
+}
+
+static void doubleRoundtrip() {
+    uint8_t buf[16] = {};
+    const double in = -123.456;
+    BufferEncoderCursor enc(buf, sizeof(buf));
+    CHECK(enc.encode(in));
+    CHECK(enc.getPos() == 8);
+
+    BufferDecoderCursor dec(buf, sizeof(buf));
+    double out = 0.0;
+    CHECK(dec.decode(out));
+    CHECK(memcmp(&in, &out, sizeof(double)) == 0);
+}
+
+static void cArrayElementwise() {
+    uint8_t buf[16] = {};
+    const uint16_t a[3] = {1, 2, 0x0304};
+    BufferEncoderCursor enc(buf, sizeof(buf));
+    CHECK(enc.encode(a));
+    CHECK(enc.getPos() == 6);
+    CHECK(buf[4] == 0x04 && buf[5] == 0x03);
+
+    BufferDecoderCursor dec(buf, sizeof(buf));
+    uint16_t b[3] = {};
+    CHECK(dec.decode(b));
+    CHECK(b[0] == a[0] && b[1] == a[1] && b[2] == a[2]);
+}
+
+static void stdArrayOfUserTypes() {
+    uint8_t buf[16] = {};
+    const std::array<Point, 2> in{{{1, -1}, {1000, -1000}}};
+    BufferEncoderCursor enc(buf, sizeof(buf));
+    CHECK(enc.encode(in));
+    CHECK(enc.getPos() == 8);
+
+    BufferDecoderCursor dec(buf, sizeof(buf));
+    std::array<Point, 2> out{};
+    CHECK(dec.decode(out));
+    CHECK(out[0].x == 1 && out[0].y == -1 && out[1].x == 1000 && out[1].y == -1000);
+}
+
+static void charArrayIsRawBytes() {
+    uint8_t buf[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    const char name[4] = "abc";
+    BufferEncoderCursor enc(buf, sizeof(buf));
+    CHECK(enc.encode(name));
+    CHECK(enc.getPos() == 4);
+    CHECK(buf[0] == 'a' && buf[2] == 'c' && buf[3] == 0x00 && buf[4] == 0xFF);
+}
+
+
 int main() {
     integralLittleEndian();
     signedRoundtrip();
@@ -131,6 +205,13 @@ int main() {
     nestedUserTypeRoundtrip();
     nestedFailurePropagates();
     encodeOnlyTypeCompiles();
+
+    floatLittleEndianLayout();
+    floatBigEndianLayout();
+    doubleRoundtrip();
+    cArrayElementwise();
+    stdArrayOfUserTypes();
+    charArrayIsRawBytes();
 
     if (failures == 0) {
         printf("ALL TESTS PASSED\n");

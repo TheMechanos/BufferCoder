@@ -3,6 +3,8 @@
 #include <BufferDecoder.hpp>
 #include <BufferEncoder.hpp>
 
+#include <array>
+#include <limits>
 #include <type_traits>
 #include <utility>
 
@@ -85,6 +87,61 @@ template <typename T> struct BufferConverter<T, std::enable_if_t<std::is_enum_v<
         Underlying raw{};
         if (!dec.decodeIntegral(raw)) return false;
         value = static_cast<T>(raw);
+        return true;
+    }
+};
+
+// float / double - raw IEEE 754 bits, byte order follows the coder's endianness
+template <typename T>
+struct BufferConverter<T, std::enable_if_t<std::is_same_v<T, float> || std::is_same_v<T, double>>> {
+    using Bits = std::conditional_t<std::is_same_v<T, float>, uint32_t, uint64_t>;
+
+    static_assert(std::numeric_limits<T>::is_iec559, "BufferConverter: IEEE 754 floating point required");
+    static_assert(sizeof(T) == sizeof(Bits), "BufferConverter: unexpected floating point size");
+
+    static bool encode(BufferEncoderCursor& enc, const T& value) {
+        Bits bits;
+        memcpy(&bits, &value, sizeof(bits));
+        return enc.encodeIntegral(bits);
+    }
+
+    static bool decode(BufferDecoderCursor& dec, T& value) {
+        Bits bits{};
+        if (!dec.decodeIntegral(bits)) return false;
+        memcpy(&value, &bits, sizeof(value));
+        return true;
+    }
+};
+
+// Fixed-size arrays - N elements in order, no length prefix
+template <typename T, size_t N> struct BufferConverter<T[N]> {
+    static bool encode(BufferEncoderCursor& enc, const T (&value)[N]) {
+        for (size_t i = 0; i < N; i++) {
+            if (!enc.encode(value[i])) return false;
+        }
+        return true;
+    }
+
+    static bool decode(BufferDecoderCursor& dec, T (&value)[N]) {
+        for (size_t i = 0; i < N; i++) {
+            if (!dec.decode(value[i])) return false;
+        }
+        return true;
+    }
+};
+
+template <typename T, size_t N> struct BufferConverter<std::array<T, N>> {
+    static bool encode(BufferEncoderCursor& enc, const std::array<T, N>& value) {
+        for (const T& item : value) {
+            if (!enc.encode(item)) return false;
+        }
+        return true;
+    }
+
+    static bool decode(BufferDecoderCursor& dec, std::array<T, N>& value) {
+        for (T& item : value) {
+            if (!dec.decode(item)) return false;
+        }
         return true;
     }
 };
